@@ -1,0 +1,436 @@
+-- @atlcompiler emftvm
+-- @nsURI  KDM=http://www.eclipse.org/MoDisco/kdm/code
+-- @nsURI  KDMStructure=http://www.eclipse.org/MoDisco/kdm/structure
+-- @path   MSAS=http://www.example.org/rMSAS/architecturalModel
+-- @path   MSASCode=http://www.example.org/rMSAS/codeModel
+
+module Smell_Refactoring;
+create OUT:KDM, OUTIN:KDMStructure refining IN:KDM, INOUT:KDMStructure, InModel:MSAS, InModelCode:MSASCode;
+
+-- ===============================================================================================================
+-- Helpers KDM
+-- ===============================================================================================================
+
+helper context OclAny  def:getArchitecturalOperation(): OclAny =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten();
+
+helper context OclAny  def:getArchitecturalOperationTo(): OclAny =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+															  -> select(p|p.oclIsTypeOf(MSAS!Move))
+															  -> flatten()
+												 			  -> collect(p|p.to)
+												 			  -> flatten();
+
+helper context OclAny  def:getArchitecturalOperationCreate(): OclAny =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+															  -> collect(p|if (p.oclIsTypeOf(MSAS!Create))then 
+															  			 p.in
+																		 else
+																		 Sequence{}
+															  			  endif)
+												 			  -> flatten();
+
+
+helper context OclAny  def:getArchitecturalAbstractionCreate(m:KDMStructure!Component): OclAny =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect (p|p.architecturalOperation)
+												 			  -> flatten()
+															  -> collect(p|if (m=p.in) then p.abstraction else Sequence{} endif)
+												 			  -> flatten();
+
+helper context OclAny  def:getArchitecturalOperationAbstraction(): OclAny =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+												 			  -> collect(p|p.abstraction)
+												 			  -> flatten();
+
+helper context OclAny  def:getArchitecturalOperationAbstractionbyComponent(m:KDMStructure!Component): OclAny =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect (p|p.architecturalOperation)
+												 			  -> flatten()
+															  -> collect(p|if (m=p.to) then p.abstraction else Sequence{} endif)
+												 			  -> flatten();
+
+helper context OclAny  def:getCodeOperation(): OclAny =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+												 			  -> collect(p|p.codeOperation)
+												 			  -> flatten();
+
+
+helper context OclAny  def:getCodeOperationTo(): OclAny =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+															  -> select(p|p.oclIsTypeOf(MSAS!Move))
+															  -> flatten()
+												 			  -> collect(p|p.codeOperation)
+												 			  -> flatten()
+												 			  -> collect(p|p.to)
+												 			  -> flatten();
+
+helper context OclAny  def:getCodeOperationEntity(): KDM!KDMEntity =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+															  -> select(p|p.oclIsTypeOf(MSAS!Move))
+															  -> flatten()
+												 			  -> collect(p|p.codeOperation)
+												 			  -> flatten()
+												 			  -> collect(p|p.entity)
+												 			  -> flatten();
+
+helper context OclAny  def:getCodeOperationEntitybyEntity(m:KDM!KDMEntity): KDM!KDMEntity =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+															  -> select(p|p.oclIsTypeOf(MSAS!Move))
+															  -> flatten()
+												 			  -> collect(p|p.codeOperation)
+												 			  -> flatten()
+												 			  -> collect(p|if (m=p.to) then p.entity else Sequence{} endif)
+												 			  -> flatten().debug();
+
+helper context OclAny  def:getRegionFile(m:KDM!KDMEntity):KDM!InventoryElement =
+KDM!InventoryModel.allInstancesFrom('IN') -> collect(f| f.inventoryElement)
+								  		  -> flatten()
+								  		  -> select (e |e.name=m.name.concat('.java'));
+
+
+helper context OclAny  def:getCodeOperationTobyEntity(m:KDM!KDMEntity):KDM!KDMEntity =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+												 			  -> collect(p|p.codeOperation)
+												 			  -> flatten()
+ 															  -> collect(p|if (m=p.entity) then p.to else Sequence{} endif)
+												 			  -> flatten();
+
+
+helper context OclAny def:getVariable(nameVariable:String):Boolean=
+KDM!StorableUnit.allInstances() -> exists (c| c.name = nameVariable);
+
+
+helper context OclAny def: getInventaryElement (m:OclAny):KDM!KDMEntity =
+KDM!InventoryModel.allInstances() ->collect(f| f.inventoryElement)->flatten()
+								  ->select(e |e.name=m.name.concat('.java'))->first();
+
+
+-- ================================================================================================================
+-- ================================================================================================================
+--entrypoint rule Start() {
+--do{
+--	for (regraAO in (MSAS!ArchitecturalRefactoringModel.allInstances()
+--					 -> collect(p|p.architecturalOperation)
+--					 ->flatten())) {
+			--thisModule.getArchitecturalOperation()) {		
+--  				if (regraAO.oclIsTypeOf(MSAS!Move)) {
+--  				    thisModule.MovingAbstraction(regraAO);
+--  	}
+--	  }
+--  }
+--}
+
+-- --------------
+-- Move Component
+-- --------------
+
+ rule MovingAbstraction{
+	from
+	    source: KDMStructure!Component in INOUT (source.getArchitecturalOperationTo()->includes(source) )
+	to
+		target: KDMStructure!Component(
+				structureElement  <-  source.getArchitecturalOperationAbstractionbyComponent(source)
+		)
+}
+
+
+-- --------
+-- Delete
+-- --------
+
+rule DeletingVariableDeclaration{
+  from
+      source: KDM!ActionElement in IN (source.kind='variable declaration' and
+									  	 (source.getCodeOperationEntity()
+									  	 	      	->collect(m |m.name)
+													->flatten())
+									   				->includes(source.codeElement->select(e|e.oclIsTypeOf(KDM!StorableUnit))
+									  				->flatten()
+										  			->collect(m |m.name)
+													->flatten()
+													->first()
+													)
+											)									 
+ to
+}
+
+
+rule UpdatingSourceRegion{
+	from
+		sour:KDM!SourceRegion in INOUT ( (sour.getCodeOperationEntity()->includes(sour.refImmediateComposite().refImmediateComposite())))
+	to
+		target:KDM!SourceRegion (
+		file <- sour.getRegionFile(sour.getCodeOperationTo().at(sour.getCodeOperationEntity()->indexOf(sour.refImmediateComposite().refImmediateComposite()))).first()
+	   )
+}
+
+
+-- ------------
+-- Move Element
+-- ------------
+rule MovingCodeElement{
+	from
+		source: KDM!ClassUnit in INOUT (source.getCodeOperationTo()->includes(source))
+	to
+		target: KDM!ClassUnit(
+				codeElement<- source.codeElement.union(source.getCodeOperationEntitybyEntity(source).debug()) 
+		)
+}
+
+
+rule UpdatingPrivacity{
+	from
+		source: KDM!Attribute in INOUT ( (source.getCodeOperationEntity()->includes(source.refImmediateComposite()) and
+										 ( source.value='none')	)
+										   
+											)
+	to
+		target: KDM!Attribute(
+		tag		<-'export',
+		value	<-'private'
+		)	
+}
+
+-- -------------
+-- Create Region
+-- -------------
+lazy rule CreateRegion{
+	from
+		source: KDM!ClassUnit
+	to
+		target: KDM!SourceRef(
+		language <- 'java',
+		region <- Sequence{sourceRegion}
+	    ),
+		
+		sourceRegion: KDM!SourceRegion (
+		language <- 'java'
+		,file <- source.getInventaryElement(source)
+		)
+}
+
+-- ----------------------
+-- Create Getter N Setter
+-- ----------------------
+
+rule CreateGetterNSetter{
+	from
+		sour: KDM!StorableUnit in IN(sour.getCodeOperationEntity()->includes(sour))
+		using 
+		{var:KDM!StorableUnit= sour.getCodeOperationEntity()
+								->collect(e |if (e=sour)then e else Sequence{} endif)
+								->flatten()->first();
+		}
+	to
+		target: KDM!StorableUnit
+	--************************************************************************************************************************
+	--GETTER
+	--************************************************************************************************************************
+		,getter:KDM!MethodUnit(   	
+	    name 		<- 'get' + sour.name,
+		--sour.name.substring(1,1).toUpper() + sour.name.substring(2,sour.name.size()),
+	   	kind 		<- #method,
+		attribute   <- Sequence{attribute},
+		source 		<- Sequence{thisModule.CreateRegion(sour.getCodeOperationTobyEntity(sour).first())},
+		type 		<- signature,
+		codeElement <- Sequence{signature},
+		codeElement <- Sequence{body}
+		),
+		
+		attribute: KDM!Attribute(
+		tag <- 'export',
+		value <-'public'
+		),
+	
+		body: KDM!BlockUnit (
+		codeElement <- Sequence{return}
+		),
+		
+		return:KDM!ActionElement(
+		name<-'return',
+		kind <-'return'		
+		),
+		
+		signature: KDM!Signature (
+		name 		  <- 'get' + sour.name.substring(1,1).toUpper() + sour.name.substring(2,sour.name.size()),
+		parameterUnit <- Sequence{parameter}
+		),
+
+		parameter: KDM!ParameterUnit(
+		kind <- #return,
+		type <- sour.type,
+		source <- Sequence{thisModule.CreateRegion(sour.getCodeOperationTobyEntity(sour).first())}
+		),
+
+		
+	--************************************************************************************************************************
+	--SETTER
+	--************************************************************************************************************************
+	
+	setter:KDM!MethodUnit(   	
+	    name 		<- 'set' + sour.name,
+		--sour.name.substring(1,1).toUpper() + sour.name.substring(2,sour.name.size()),
+	   	kind 		<- #method,
+		attribute   <- Sequence{attribute2},
+		type 		<- signature2,
+		codeElement <- Sequence{signature2},
+		codeElement <- Sequence{body2}
+		),
+		
+		attribute2: KDM!Attribute(
+		tag <- 'export',
+		value <-'public'
+		),
+		
+		signature2: KDM!Signature(
+		name 		  <- 'set' + sour.name.substring(1,1).toUpper() + sour.name.substring(2,sour.name.size()),
+		parameterUnit <- Sequence{parameter2}
+		),
+
+		parameter2: KDM!ParameterUnit(
+		kind <- #return,
+		type <- sour.type,
+		source <- Sequence{thisModule.CreateRegion(sour.getCodeOperationTobyEntity(sour).first())}
+		),
+
+		body2: KDM!BlockUnit(
+		codeElement <- Sequence{expressionStatement},
+		source <- Sequence{thisModule.CreateRegion(sour.getCodeOperationTobyEntity(sour).first())}
+		),
+		
+		expressionStatement:KDM!ActionElement(
+		name <-'expression statement',
+		kind <-'expression statement',
+		source <- Sequence{thisModule.CreateRegion(sour.getCodeOperationTobyEntity(sour).first())},
+		codeElement <- Sequence{assign}
+		),
+		
+		assign:KDM!ActionElement(
+		name<-'ASSIGN',
+		kind<-'assignment',
+		source <- Sequence{thisModule.CreateRegion(sour.getCodeOperationTobyEntity(sour).first())},
+		codeElement <- Sequence{fieldAccess},
+		actionRelation<- Sequence{createReads}
+		),
+		
+		createReads:KDM!Reads(
+		from <- assign,
+		to   <- parameter2
+		),
+		
+		fieldAccess:KDM!ActionElement(
+		name <-'field access',
+		kind <-'field access',
+		source <- Sequence{thisModule.CreateRegion(sour.getCodeOperationTobyEntity(sour).first())},
+		codeElement <- Sequence{this},
+		actionRelation<-  Sequence{createAddresses}
+		),
+		
+		createAddresses:KDM!Addresses(
+		from <- fieldAccess,
+		to   <- sour
+		),
+		
+		this:KDM!ActionElement(
+		name <-'this',
+		kind <-'this',
+		source <- Sequence{thisModule.CreateRegion(sour.getCodeOperationTobyEntity(sour).first())}
+		)
+	
+		do{
+		
+			for (c in KDM!MethodUnit.allInstances()){
+				if (c.name= getter.name){				
+				c.codeElement <- c.codeElement -> union(Sequence{signature});
+				}
+			}
+		 	for (c in KDM!MethodUnit.allInstances()){
+				if (c.name= setter.name){				
+				c.codeElement <- c.codeElement -> union(Sequence{signature2});
+				}
+			}	
+		 	
+		 	for(c in KDM!ClassUnit.allInstancesFrom('INOUT')){		
+				if (c.codeElement-> includes(var)){
+				c.codeElement <- c.codeElement -> union(Sequence{getter, setter});
+				}
+			 }	 				
+	  
+		}	
+}
+
+
+ rule CreatingAbstraction{
+	from
+	    source: KDMStructure!Component in INOUT (source.name='Controller_1')
+												 --source.getArchitecturalOperationCreate()->includes(source) )
+	to
+		target: KDMStructure!Component(
+				structureElement  <- Sequence{AbstractElement}
+		),
+		AbstractElement:KDMStructure!Component(
+		name 				<- 'Guisella',
+		--source.getArchitecturalAbstractionCreate(source).debug(),
+		implementation		<- Sequence{}
+		)
+}
+ 
+ 
+-- ---------------------
+-- 
+-- -------------------
+rule DeleteRegion{
+  from
+     source: KDM!SourceRef  in INOUT (source.refImmediateComposite().oclIsUndefined())							 
+ to
+}
+
+-- -------------------------------
+-- Métodos GET and SET "Detached"
+-- -------------------------------
+-- Colocando os métodos "GET" and "SET" nas suas respectivas Classes.
+
+endpoint rule manageDetachedElements() {
+
+	 do{
+		 	for(c in KDM!MethodUnit.allInstancesFrom('INOUT')){		
+					if (c.refImmediateComposite().oclIsUndefined()){	
+					   if (c.name.startsWith('get') or c.name.startsWith('set')){
+						thisModule.getClassofSetGetMethod(c.name).codeElement <- thisModule.getClassofSetGetMethod(c.name).codeElement -> union(Sequence{c});
+					   }
+				   }
+			}
+		 	
+	  }
+}
+
+
+helper def:getClassofSetGetMethod(m:String):KDM!ClassUnit =
+MSAS!ArchitecturalRefactoringModel.allInstancesFrom('InModel')-> collect(p|p.architecturalOperation)
+												 			  -> flatten()
+												 			  -> collect(p|p.codeOperation)
+															  -> flatten()
+ 															  -> collect(p|if(p.entity.name=m.substring(4,m.size())) then 
+																					p.to
+																					else Sequence{} 
+ 															  				endif)
+																	
+												 			  -> flatten()
+															  -> first();
+
+
+
+
+
+ 
+ 
+  
+
